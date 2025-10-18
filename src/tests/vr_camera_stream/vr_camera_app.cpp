@@ -971,30 +971,18 @@ void VRCameraApp::RenderEye(int eyeIndex, const XrSwapchainImageVulkan2KHR& swap
     vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
                         0, 0, nullptr, 0, nullptr, 1, &barrier);
     
-    // Copy eye texture to swapchain image
-    VkImageCopy copyRegion{};
-    copyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    copyRegion.srcSubresource.mipLevel = 0;
-    copyRegion.srcSubresource.baseArrayLayer = 0;
-    copyRegion.srcSubresource.layerCount = 1;
-    copyRegion.srcOffset = {0, 0, 0};
+    // Scale the camera image to fill more of the swapchain
+    uint32_t swapchainWidth = swapchains_[eyeIndex].width;   // 2468
+    uint32_t swapchainHeight = swapchains_[eyeIndex].height; // 2740
     
-    copyRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    copyRegion.dstSubresource.mipLevel = 0;
-    copyRegion.dstSubresource.baseArrayLayer = 0;
-    copyRegion.dstSubresource.layerCount = 1;
-    copyRegion.dstOffset = {0, 0, 0};
+    // Scale up the image by 2x to make it more visible
+    // Camera: 640x480 -> Scaled: 1280x960
+    uint32_t scaledWidth = 640 * 2;   // 1280
+    uint32_t scaledHeight = 480 * 2;  // 960
     
-    // Scale the camera image to fill the swapchain (maintain aspect ratio)
-    uint32_t swapchainWidth = swapchains_[eyeIndex].width;
-    uint32_t swapchainHeight = swapchains_[eyeIndex].height;
-    
-    // Center the camera image in the swapchain (simple centered approach)
-    uint32_t offsetX = (swapchainWidth - 640) / 2;
-    uint32_t offsetY = (swapchainHeight - 480) / 2;
-    
-    copyRegion.dstOffset = {(int32_t)offsetX, (int32_t)offsetY, 0};
-    copyRegion.extent = {640, 480, 1};
+    // Center the scaled image in the swapchain
+    uint32_t offsetX = (swapchainWidth - scaledWidth) / 2;   // (2468-1280)/2 = 594
+    uint32_t offsetY = (swapchainHeight - scaledHeight) / 2; // (2740-960)/2 = 890
     
     // Transition eye texture to transfer source
     VkImageMemoryBarrier srcBarrier{};
@@ -1011,11 +999,27 @@ void VRCameraApp::RenderEye(int eyeIndex, const XrSwapchainImageVulkan2KHR& swap
     vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
                         0, 0, nullptr, 0, nullptr, 1, &srcBarrier);
     
-    // Copy the eye texture to the swapchain image
-    vkCmdCopyImage(commandBuffer, 
+    // Use blit to scale the image instead of copy
+    VkImageBlit blitRegion{};
+    blitRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    blitRegion.srcSubresource.mipLevel = 0;
+    blitRegion.srcSubresource.baseArrayLayer = 0;
+    blitRegion.srcSubresource.layerCount = 1;
+    blitRegion.srcOffsets[0] = {0, 0, 0};
+    blitRegion.srcOffsets[1] = {640, 480, 1};  // Source: full 640x480 camera image
+    
+    blitRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    blitRegion.dstSubresource.mipLevel = 0;
+    blitRegion.dstSubresource.baseArrayLayer = 0;
+    blitRegion.dstSubresource.layerCount = 1;
+    blitRegion.dstOffsets[0] = {(int32_t)offsetX, (int32_t)offsetY, 0};
+    blitRegion.dstOffsets[1] = {(int32_t)(offsetX + scaledWidth), (int32_t)(offsetY + scaledHeight), 1};
+    
+    // Blit (scale) the eye texture to the swapchain image
+    vkCmdBlitImage(commandBuffer,
                    eyeTextures_[eyeIndex].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                    swapchainImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                   1, &copyRegion);
+                   1, &blitRegion, VK_FILTER_LINEAR);
     
     // Transition swapchain image to color attachment optimal
     barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
