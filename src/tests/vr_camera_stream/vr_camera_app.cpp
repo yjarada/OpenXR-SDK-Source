@@ -31,7 +31,7 @@ bool VRCameraApp::Initialize() {
     
     // Step 1: Initialize camera first (we know this works)
     LogMessage("Step 1: Initializing camera...");
-    if (!camera_->Initialize("/dev/video0", 1280, 480, 60)) {
+    if (!camera_->Initialize("/dev/video0", 3200, 1200, 60)) {
         LogMessage("ERROR: Failed to initialize camera!");
         return false;
     }
@@ -468,8 +468,8 @@ bool VRCameraApp::CreateVulkanResources() {
 }
 
 bool VRCameraApp::CreateStagingBuffer() {
-    // Create staging buffer large enough for one eye frame (640x480x4 bytes for RGBA)
-    VkDeviceSize bufferSize = 640 * 480 * 4;
+    // Create staging buffer large enough for one eye frame (1600x1200x4 bytes for RGBA)
+    VkDeviceSize bufferSize = 1600 * 1200 * 4;
     
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -543,13 +543,13 @@ void VRCameraApp::EndSingleTimeCommands(VkCommandBuffer commandBuffer) {
 }
 
 bool VRCameraApp::CreateEyeTextures() {
-    // Create textures for left and right eye (640x480 each)
+    // Create textures for left and right eye (1600x1200 each)
     for (int eye = 0; eye < 2; eye++) {
         VkImageCreateInfo imageInfo{};
         imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         imageInfo.imageType = VK_IMAGE_TYPE_2D;
-        imageInfo.extent.width = 640;  // Half of camera width
-        imageInfo.extent.height = 480;
+        imageInfo.extent.width = 1600;  // Half of camera width
+        imageInfo.extent.height = 1200;
         imageInfo.extent.depth = 1;
         imageInfo.mipLevels = 1;
         imageInfo.arrayLayers = 1;
@@ -646,11 +646,11 @@ void VRCameraApp::UpdateCamera() {
     }
     
     // Split stereo frame: left half and right half
-    int width = cameraFrame_.cols / 2;  // 640 pixels
-    int height = cameraFrame_.rows;     // 480 pixels
+    int width = cameraFrame_.cols / 2;  // 1600 pixels
+    int height = cameraFrame_.rows;     // 1200 pixels
     
-    leftEyeFrame_ = cameraFrame_(cv::Rect(0, 0, width, height));        // Left 640x480
-    rightEyeFrame_ = cameraFrame_(cv::Rect(width, 0, width, height));   // Right 640x480
+    leftEyeFrame_ = cameraFrame_(cv::Rect(0, 0, width, height));        // Left 1600x1200
+    rightEyeFrame_ = cameraFrame_(cv::Rect(width, 0, width, height));   // Right 1600x1200
     
     frameCount_++;
     
@@ -711,7 +711,7 @@ void VRCameraApp::UploadCameraTextures() {
         region.imageSubresource.baseArrayLayer = 0;
         region.imageSubresource.layerCount = 1;
         region.imageOffset = {0, 0, 0};
-        region.imageExtent = {640, 480, 1};
+        region.imageExtent = {1600, 1200, 1};
         
         vkCmdCopyBufferToImage(commandBuffer, stagingBuffer_, eyeTextures_[eye].image,
                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
@@ -975,14 +975,14 @@ void VRCameraApp::RenderEye(int eyeIndex, const XrSwapchainImageVulkan2KHR& swap
     uint32_t swapchainWidth = swapchains_[eyeIndex].width;   // 2468
     uint32_t swapchainHeight = swapchains_[eyeIndex].height; // 2740
     
-    // Scale up the image by 2x to make it more visible
-    // Camera: 640x480 -> Scaled: 1280x960
-    uint32_t scaledWidth = 640 * 2;   // 1280
-    uint32_t scaledHeight = 480 * 2;  // 960
+    // Scale down the high-res camera image to fit in VR display
+    // Camera: 1600x1200 -> Scaled: 1600x1200 (fits well in 2468x2740 display)
+    uint32_t scaledWidth = 1600;   // Use original camera resolution
+    uint32_t scaledHeight = 1200;  // Use original camera resolution
     
     // Center the scaled image in the swapchain
-    uint32_t offsetX = (swapchainWidth - scaledWidth) / 2;   // (2468-1280)/2 = 594
-    uint32_t offsetY = (swapchainHeight - scaledHeight) / 2; // (2740-960)/2 = 890
+    uint32_t offsetX = (swapchainWidth - scaledWidth) / 2;   // (2468-1600)/2 = 434
+    uint32_t offsetY = (swapchainHeight - scaledHeight) / 2; // (2740-1200)/2 = 770
     
     // Transition eye texture to transfer source
     VkImageMemoryBarrier srcBarrier{};
@@ -1006,7 +1006,7 @@ void VRCameraApp::RenderEye(int eyeIndex, const XrSwapchainImageVulkan2KHR& swap
     blitRegion.srcSubresource.baseArrayLayer = 0;
     blitRegion.srcSubresource.layerCount = 1;
     blitRegion.srcOffsets[0] = {0, 0, 0};
-    blitRegion.srcOffsets[1] = {640, 480, 1};  // Source: full 640x480 camera image
+    blitRegion.srcOffsets[1] = {1600, 1200, 1};  // Source: full 1600x1200 camera image
     
     blitRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     blitRegion.dstSubresource.mipLevel = 0;

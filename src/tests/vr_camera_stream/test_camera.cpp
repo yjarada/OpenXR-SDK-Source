@@ -11,9 +11,9 @@ int main() {
     
     // Initialize camera with optimal settings for VR (low latency)
     // Try 120 FPS first, fall back to 60 if needed
-    if (!camera.Initialize("/dev/video0", 1280, 480, 120)) {
+    if (!camera.Initialize("/dev/video0", 3200, 1200, 120)) {
         std::cout << "120 FPS failed, trying 60 FPS..." << std::endl;
-        if (!camera.Initialize("/dev/video0", 1280, 480, 60)) {
+        if (!camera.Initialize("/dev/video0", 3200, 1200, 60)) {
             std::cerr << "Failed to initialize camera!" << std::endl;
             return -1;
         }
