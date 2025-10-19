@@ -104,7 +104,7 @@ bool VRCameraApp::CreateInstance() {
     std::vector<const char*> extensions = GetRequiredExtensions();
     
     XrApplicationInfo appInfo{};
-    strcpy(appInfo.applicationName, "HelloXR");  // Use same name as hello_xr
+    strcpy(appInfo.applicationName, "Mundane Teleoperation Experience"); 
     appInfo.applicationVersion = 1;
     strcpy(appInfo.engineName, "Custom");
     appInfo.engineVersion = 1;
