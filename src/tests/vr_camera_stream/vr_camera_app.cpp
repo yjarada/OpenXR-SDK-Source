@@ -4,6 +4,8 @@
 #include <cassert>
 #include <thread>
 #include <chrono>
+#include <cmath>
+#include <cstdio>
 
 // Vulkan validation layers for debugging
 const std::vector<const char*> validationLayers = {
@@ -637,6 +639,47 @@ void VRCameraApp::LogMessage(const std::string& message) {
     std::cout << "[VRCameraApp] " << message << std::endl;
 }
 
+void VRCameraApp::QuaternionToRPY(const XrQuaternionf& q, float& roll, float& pitch, float& yaw) {
+    // Convert quaternion to Roll-Pitch-Yaw (in radians)
+    // Roll (x-axis rotation)
+    float sinr_cosp = 2.0f * (q.w * q.x + q.y * q.z);
+    float cosr_cosp = 1.0f - 2.0f * (q.x * q.x + q.y * q.y);
+    roll = atan2f(sinr_cosp, cosr_cosp);
+
+    // Pitch (y-axis rotation)
+    float sinp = 2.0f * (q.w * q.y - q.z * q.x);
+    if (fabsf(sinp) >= 1.0f)
+        pitch = copysignf(M_PI / 2.0f, sinp); // Use 90 degrees if out of range
+    else
+        pitch = asinf(sinp);
+
+    // Yaw (z-axis rotation)
+    float siny_cosp = 2.0f * (q.w * q.z + q.x * q.y);
+    float cosy_cosp = 1.0f - 2.0f * (q.y * q.y + q.z * q.z);
+    yaw = atan2f(siny_cosp, cosy_cosp);
+}
+
+void VRCameraApp::LogHeadsetRPY() {
+    if (views_.empty()) return;
+    
+    // Use the center eye view (average of left and right)
+    // For simplicity, we'll just use the left eye view
+    const XrPosef& headPose = views_[0].pose;
+    
+    float roll, pitch, yaw;
+    QuaternionToRPY(headPose.orientation, roll, pitch, yaw);
+    
+    // Convert radians to degrees for display
+    float rollDeg = roll * 180.0f / M_PI;
+    float pitchDeg = pitch * 180.0f / M_PI;
+    float yawDeg = yaw * 180.0f / M_PI;
+    
+    // Compact format with 1 decimal precision for faster reading
+    char buffer[256];
+    sprintf(buffer, "RPY: R=%.1f° P=%.1f° Y=%.1f°", rollDeg, pitchDeg, yawDeg);
+    LogMessage(buffer);
+}
+
 void VRCameraApp::UpdateCamera() {
     if (!camera_->CaptureFrame(cameraFrame_)) {
         if (frameCount_ % 60 == 0) { // Log every 60 frames to avoid spam
@@ -654,10 +697,15 @@ void VRCameraApp::UpdateCamera() {
     
     frameCount_++;
     
-    // Debug log every 60 frames
+    // Debug log every 60 frames for camera info
     if (frameCount_ % 60 == 0) {
-        LogMessage("Camera frame " + std::to_string(frameCount_) + ": " + 
-                  std::to_string(cameraFrame_.cols) + "x" + std::to_string(cameraFrame_.rows));
+        // LogMessage("Camera frame " + std::to_string(frameCount_) + ": " + 
+        //           std::to_string(cameraFrame_.cols) + "x" + std::to_string(cameraFrame_.rows));
+    }
+    
+    // Log headset orientation every 5 frames for very fast updates
+    if (frameCount_ % 5 == 0) {
+        LogHeadsetRPY();
     }
 }
 
@@ -761,7 +809,7 @@ void VRCameraApp::Run() {
             if (frameCount_ % 120 == 0) {
                 frameTimer_.Stop();
                 double avgFPS = frameCount_ / frameTimer_.GetElapsedMilliseconds() * 1000.0;
-                LogMessage("Frame " + std::to_string(frameCount_) + " - Average FPS: " + std::to_string(avgFPS));
+                // LogMessage("Frame " + std::to_string(frameCount_) + " - Average FPS: " + std::to_string(avgFPS));
             }
         } else {
             // Log current state periodically when not rendering
@@ -828,7 +876,7 @@ bool VRCameraApp::IsSessionRunning() const {
 void VRCameraApp::RenderFrame() {
     static int renderFrameCount = 0;
     if (renderFrameCount++ % 60 == 0) {
-        LogMessage("RenderFrame called - count: " + std::to_string(renderFrameCount));
+        // LogMessage("RenderFrame called - count: " + std::to_string(renderFrameCount));
     }
     
     // Begin frame

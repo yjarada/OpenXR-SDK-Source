@@ -155,4 +155,6 @@ private:
     std::vector<const char*> GetRequiredExtensions();
     uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
     void LogMessage(const std::string& message);
+    void LogHeadsetRPY();  // Log Roll, Pitch, Yaw from headset
+    void QuaternionToRPY(const XrQuaternionf& q, float& roll, float& pitch, float& yaw);
 };
